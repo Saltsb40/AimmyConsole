@@ -1,0 +1,6 @@
+names:
+- class_0
+nc: 1
+path: C:\Users\steam\Downloads\Aimmy-Aimmy-V2\Aimmy-Aimmy-V2\Aimmy2\bin\Release\net8.0-windows10.0.19041.0\bin
+train: images
+val: images

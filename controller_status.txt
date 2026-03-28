@@ -1,0 +1,7 @@
+Active: True
+Backend: XInput
+Notified: True
+XInput found: True
+Pressed: None
+Raw: XInput:0x0000
+Time: 3/27/2026 2:43:56 AM
