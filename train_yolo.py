@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--model", default="yolov8m.pt", help="Base YOLO model (e.g., yolov8m.pt, yolov8s.pt)")
     parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
     parser.add_argument("--imgsz", type=int, default=640, help="Image size for training (640 or 1024)")
-    parser.add_argument("--batch", type=int, default=16, help="Batch size (Optimized for RTX 4060)")
+    parser.add_argument("--batch", type=int, default=-1, help="Batch size (Managed by Ultralytics for RTX 4060)")
     parser.add_argument("--classes", type=int, default=1, help="Number of classes")
     parser.add_argument("--class-names", nargs="+", default=None, help="Class names (e.g., player enemy)")
     parser.add_argument("--output", default="bin/models", help="Output directory for ONNX model")
@@ -113,25 +113,35 @@ def main():
     # Handle export-only mode
     if args.export_only:
         print("\n[Export] Export-only mode active. Skipping training...")
-        best_pt = os.path.join("training_runs", "aimbot", "weights", "best.pt")
-        if not os.path.exists(best_pt):
-            # Try finding it in the ultralytics standard path if our project-specific one fails
-            best_pt = os.path.join("runs", "detect", "aimbot", "weights", "best.pt")
+        
+        # Check all possible locations for best.pt
+        best_pt_paths = [
+            os.path.join("training_runs", "aimbot", "weights", "best.pt"),
+            os.path.join("runs", "detect", "training_runs", "aimbot", "weights", "best.pt"),
+            os.path.join("runs", "detect", "aimbot", "weights", "best.pt"),
+        ]
+        
+        best_pt = None
+        for p in best_pt_paths:
+            if os.path.exists(p):
+                best_pt = p
+                break
             
-        if os.path.exists(best_pt):
+        if best_pt:
             export_model(best_pt, args)
             return
         else:
-            print(f"[Export] Error: No best.pt found at {best_pt}")
+            print(f"[Export] Error: No best.pt found in any searched locations.")
             return
 
     # --- INTERACTIVE TRAINING MODES ---
     # Search for checkpoints in common Ultralytics locations
     possible_paths = [
+        os.path.join("training_runs", "aimbot", "weights", "last.pt"), # New simplified path
+        os.path.join("runs", "detect", "training_runs", "aimbot", "weights", "last.pt"), # Nested under default runs dir
         os.path.join("runs", "aimbot_train", "weights", "last.pt"), # Current script default
         os.path.join("runs", "detect", "runs", "aimbot_train", "weights", "last.pt"), # Common nested path
         os.path.join("AuraVision_App", "scripts", "runs", "detect", "runs", "aimbot_train", "weights", "last.pt"), # User's specific nested path
-        os.path.join("training_runs", "aimbot", "weights", "last.pt"), # New simplified path
     ]
     
     last_pt = None
@@ -191,7 +201,19 @@ def main():
                     args.batch = 48
                     print(" [Train] Nano model detected. Batch size set to 48 for optimization.")
                 
-                print(f" [Train] Fresh start selected. Model: {args.model}. Wiping old progress...")
+                # Image Size selection for fresh start
+                print("\n" + "-"*30)
+                print(" [Fresh Start] Select Image Size (Resolution):")
+                print(" [1] 320px (Fastest)")
+                print(" [2] 640px (Standard - Recommended)")
+                print(" [3] 1024px (High)")
+                print(" [4] 1280px (Max)")
+                print("-"*30)
+                i_choice = input(" [Input] Choice [1-4, Default 2]: ").strip()
+                imgsz_map = {"1": 320, "2": 640, "3": 1024, "4": 1280}
+                args.imgsz = imgsz_map.get(i_choice, 640)
+
+                print(f" [Train] Fresh start selected. Model: {args.model}, Resolution: {args.imgsz}. Wiping old progress...")
                 
                 # Allow user to choose how many epochs for fresh start
                 print(f"\n [Train] Default is {args.epochs} epochs.")
@@ -224,13 +246,25 @@ def main():
                 args.batch = 48
                 print(" [Train] Nano model detected. Batch size set to 48 for optimization.")
             
+            # Image Size selection for first time
+            print("\n" + "-"*30)
+            print(" [Fresh Start] Select Image Size (Resolution):")
+            print(" [1] 320px (Fastest)")
+            print(" [2] 640px (Standard - Recommended)")
+            print(" [3] 1024px (High)")
+            print(" [4] 1280px (Max)")
+            print("-"*30)
+            i_choice = input(" [Input] Choice [1-4, Default 2]: ").strip()
+            imgsz_map = {"1": 320, "2": 640, "3": 1024, "4": 1280}
+            args.imgsz = imgsz_map.get(i_choice, 640)
+
             # Epoch selection for first time
             print(f"\n [Train] Default is {args.epochs} epochs.")
             add_epochs = input(" [Input] Enter TOTAL epochs to train (e.g., 100): ").strip()
             if add_epochs.isdigit():
                 args.epochs = int(add_epochs)
             
-            print(f" [Train] Starting new training with {args.model} for {args.epochs} epochs.")
+            print(f" [Train] Starting new training with {args.model} @ {args.imgsz}px for {args.epochs} epochs.")
 
     if args.resume: 
         mode = "resume"
@@ -257,8 +291,8 @@ def main():
     if torch.cuda.is_available():
         print(f"[Train] CUDA Detected: {torch.cuda.get_device_name(0)}")
 
-    # Force batch size to 48 if training with Nano model (yolov8n.pt)
-    if "yolov8n.pt" in str(args.model).lower():
+    # Auto-batch is handled by args.batch = -1
+    if "yolov8n.pt" in str(args.model).lower() and args.batch == 16:
         args.batch = 48
         print(" [Train] Nano model detected. Ensuring batch size is 48.")
 
@@ -273,7 +307,7 @@ def main():
         imgsz=args.imgsz,
         batch=args.batch,
         device=args.device,
-        workers=8,     # Optimized for 32GB RAM
+        workers=6,     # Optimized for hardware parallelization
         project="training_runs",
         name="aimbot",
         exist_ok=True,
