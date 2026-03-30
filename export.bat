@@ -1,3 +1,4 @@
+@echo off
 set "VENV_PATH=%~dp0..\..\..\..\venv\Scripts\python.exe"
 echo [Batch] Exporting Best Model to ONNX...
 
@@ -12,10 +13,10 @@ if exist "%VENV_PATH%" (
     if !HAS_IMSZ! equ 0 (
         echo.
         echo [Batch] Select Export Resolution:
-        echo  [1] 320px (Fastest)
-        echo  [2] 640px (Standard)
-        echo  [3] 1024px (High)
-        echo  [4] 1280px (Max)
+        echo  [1] 320px (Fastest^)
+        echo  [2] 640px (Standard^)
+        echo  [3] 1024px (High^)
+        echo  [4] 1280px (Max^)
         set /p IMSZ_CHOICE=" [Input] Choice [1-4, Default 2]: "
         
         set "IMSZ=640"
